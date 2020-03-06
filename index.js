@@ -12,7 +12,7 @@ admin.initializeApp({
   databaseURL: 'https://notey-mcnoteface.firebaseio.com',
 });
 
-https: exports.saveUser = (event, context, callback) => {
+exports.saveUser = (event, context, callback) => {
   const done = (err, res) =>
     callback(null, {
       statusCode: err ? '400' : '200',
