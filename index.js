@@ -5,6 +5,8 @@ AWS.config.region = 'us-east-1';
 
 const dynamo = new AWS.DynamoDB.DocumentClient();
 
+const admin = require('firebase-admin');
+
 exports.saveUser = (event, context, callback) => {
   const done = (err, res) =>
     callback(null, {
@@ -21,7 +23,7 @@ exports.saveUser = (event, context, callback) => {
       const { Id, Email, Name } = JSON.parse(event.body);
 
       const saveUserPostParams = {
-        TableName: event.queryStringParameters.ServerlessUsersTable,
+        TableName: 'users',
         Item: {
           Id,
           Email,
@@ -29,7 +31,7 @@ exports.saveUser = (event, context, callback) => {
         },
       };
 
-      dynamo.putItem(saveUserPostParams, done);
+      dynamo.put(saveUserPostParams, done);
       break;
     default:
       done(new Error(`Unsupported method "${event.httpMethod}"`));
@@ -50,7 +52,7 @@ exports.handlePlaylist = (event, context, callback) => {
   switch (event.httpMethod) {
     case 'GET':
       const playlistGetParams = {
-        TableName: event.queryStringParameters.ServerlessPlaylistTable,
+        TableName: 'playlist',
         IndexName: 'PlaylistIndex',
         KeyConditionExpression: 'Playlist = :Playlist',
         ExpressionAttributeValues: {
@@ -58,17 +60,35 @@ exports.handlePlaylist = (event, context, callback) => {
         },
       };
 
-      dynamo.query(playlistGetParams, done);
+      admin
+        .auth()
+        .verifyIdToken(event.queryStringParameters.Id)
+        .then(() => {
+          dynamo.query(playlistGetParams, done);
+        })
+        .catch((error) => {
+          done(new Error(error));
+        });
       break;
     case 'POST':
       const { Id, Songs } = event.body;
       const savePlaylistPostParams = {
-        TableName: event.queryStringParameters.ServerlessPlaylistTable,
+        TableName: 'playlist',
         Item: {
           Id,
           Songs,
         },
       };
+
+      admin
+        .auth()
+        .verifyIdToken(idToken)
+        .then(() => {
+          dynamo.put(savePlaylistPostParams, done);
+        })
+        .catch((error) => {
+          done(new Error(error));
+        });
 
       dynamo.put(savePlaylistPostParams, done);
       break;
