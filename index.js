@@ -7,7 +7,12 @@ const dynamo = new AWS.DynamoDB.DocumentClient();
 
 const admin = require('firebase-admin');
 
-exports.saveUser = (event, context, callback) => {
+admin.initializeApp({
+  credential: admin.credential.applicationDefault(),
+  databaseURL: 'https://notey-mcnoteface.firebaseio.com',
+});
+
+https: exports.saveUser = (event, context, callback) => {
   const done = (err, res) =>
     callback(null, {
       statusCode: err ? '400' : '200',
