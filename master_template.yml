@@ -1,0 +1,348 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Music Ally Stack Configuration'
+Parameters:
+  ServerlessUsersTable:
+    Type: String
+    Default: 'users'
+  ServerlessPlaylistTable:
+    Type: String
+    Default: 'playlist'
+Resources:
+  ContractorGeneralPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'ContractorGeneral'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'CreateContractorGeneral'
+            Effect: 'Allow'
+            Action:
+              - 'iam:ListPolicies'
+              - 'iam:ListRoles'
+              - 'iam:ListUsers'
+              - 'iam:ListGroups'
+              - 'iam:ListVirtualMFADevices'
+            Resource: '*'
+      Roles:
+        - !Ref ContractorsRole
+
+  ContractorCloudFormationPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'ContractorCloudFormation'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'CreateContractorCloudFormation'
+            Effect: 'Allow'
+            Action:
+              - 'cloudformation:ListStacks'
+              - 'cloudformation:ListStackResources'
+              - 'cloudformation:GetTemplate'
+            Resource: '*'
+      Roles:
+        - !Ref ContractorsRole
+
+  ContractorDynamoDbPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'ContractorDynamoDb'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'CreateContractorDynamoDb'
+            Effect: 'Allow'
+            Action:
+              - 'dynamodb:BatchGetItem'
+              - 'dynamodb:ListGlobalTables'
+              - 'dynamodb:ListTables'
+              - 'dynamodb:DescribeGlobalTable'
+              - 'dynamodb:GetItem'
+              - 'dynamodb:Scan'
+              - 'dynamodb:Query'
+              - 'dynamodb:DescribeTimeToLive'
+              - 'dynamodb:GetRecords'
+            Resource: '*'
+      Roles:
+        - !Ref ContractorsRole
+
+  ContractorS3Policy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'CustomBucketViewer'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'S3ListAllBuckets'
+            Effect: 'Allow'
+            Action:
+              - 's3:ListAllMyBuckets'
+            Resource: 'arn:aws:s3:::*'
+          - Sid: 'S3ListBucket'
+            Effect: 'Allow'
+            Action:
+              - 's3:ListBucket'
+            Resource: 'arn:aws:s3:::bryce-graves'
+          - Sid: 'S3GetObject'
+            Effect: 'Allow'
+            Action:
+              - 's3:GetObject'
+            Resource: 'arn:aws:s3:::bryce-graves/*'
+      Roles:
+        - !Ref ContractorsRole
+
+  MusicAllyServicePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'MusicAllyAWSManager'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'ManagedS3'
+            Effect: 'Allow'
+            Action:
+              - 's3:*'
+            Resource: '*'
+          - Sid: 'ManagedDynamoDb'
+            Effect: 'Allow'
+            Action:
+              - 'dynamodb:*'
+            Resource: '*'
+      Roles:
+        - !Ref MusicAllyRole
+        - !Ref MusicAllyServerlessRole
+
+  ContractorsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: 'contractors'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action: 'sts:AssumeRole'
+            Principal:
+              AWS: '204087959985'
+            Condition: !Ref 'AWS::NoValue'
+
+  S3BucketWithOpenIndex:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'bryce-graves'
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  MusicAllyRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: 'music-ally-service-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - 'ec2.amazonaws.com'
+
+  MusicAllyServerlessRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: 'MusicAllyServerlessRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+
+  MusicAllyInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: 'music-ally-service'
+      Path: '/'
+      Roles:
+        - !Ref MusicAllyRole
+
+  MusicAllySecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Server services security permissions'
+      GroupName: 'music-ally-services'
+      VpcId: 'vpc-12320668'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 216.228.171.131/32
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+
+  MusicAllyServiceEC2:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: 'ami-0a887e401f7654935'
+      KeyName: 'master-key'
+      SecurityGroupIds:
+        - !Ref MusicAllySecurityGroup
+      IamInstanceProfile: 'music-ally-service'
+      InstanceType: 't2.micro'
+      Tenancy: 'default'
+      Monitoring: false
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: 'stop'
+      CreditSpecification:
+        CPUCredits: 'standard'
+      EbsOptimized: false
+      BlockDeviceMappings:
+        - DeviceName: '/dev/xvda'
+          Ebs:
+            VolumeSize: 8
+            DeleteOnTermination: true
+            VolumeType: 'gp2'
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          sudo yum update -y
+          curl -sL https://rpm.nodesource.com/setup_10.x | sudo bash -
+          sudo yum install nodejs -y
+          curl -sL https://dl.yarnpkg.com/rpm/yarn.repo | sudo tee /etc/yum.repos.d/yarn.repo
+          sudo yum install yarn -y
+          sudo yum install git -y
+          git clone https://github.com/BryceGraves/music-ally-services.git
+          cd music-ally-services
+          yarn install && yarn start
+
+  MusicAllySaveUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.saveUser
+      Runtime: nodejs12.x
+      CodeUri: s3://music-ally-serverless/lambdaFunction.zip
+      Description: Function to handle saving the information of users that access the site
+      MemorySize: 512
+      Timeout: 10
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: !Ref ServerlessUsersTable
+      Role: !GetAtt MusicAllyServerlessRole.Arn
+      Events:
+        SaveUser:
+          Type: Api
+          Properties:
+            Path: /save-user
+            Method: POST
+
+  MusicAllyHandlePlaylistFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handlePlaylist
+      Runtime: nodejs12.x
+      CodeUri: s3://music-ally-serverless/lambdaFunction.zip
+      Description: Function to handle user playlist interactions via GET and POST.
+      MemorySize: 512
+      Timeout: 10
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: !Ref ServerlessPlaylistTable
+      Role: !GetAtt MusicAllyServerlessRole.Arn
+      Events:
+        GetPlaylist:
+          Type: Api
+          Properties:
+            Path: /user/playlist
+            Method: GET
+        SavePlaylist:
+          Type: Api
+          Properties:
+            Path: /user/playlist
+            Method: POST
+
+  DynamoDBMusic:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: music
+      BillingMode: 'PROVISIONED'
+      SSESpecification:
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: Genre
+          AttributeType: S
+        - AttributeName: Artist
+          AttributeType: S
+        - AttributeName: Album
+          AttributeType: S
+        - AttributeName: Song
+          AttributeType: S
+        - AttributeName: DatabasePath
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Genre
+          KeyType: HASH
+        - AttributeName: DatabasePath
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      GlobalSecondaryIndexes:
+        - IndexName: ArtistIndex
+          KeySchema:
+            - AttributeName: Artist
+              KeyType: HASH
+            - AttributeName: Album
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+        - IndexName: AlbumIndex
+          KeySchema:
+            - AttributeName: Album
+              KeyType: HASH
+            - AttributeName: Song
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+        - IndexName: SongIndex
+          KeySchema:
+            - AttributeName: Song
+              KeyType: HASH
+            - AttributeName: DatabasePath
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+  DynamoDBUsers:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ServerlessUsersTable
+      BillingMode: 'PROVISIONED'
+      SSESpecification:
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
