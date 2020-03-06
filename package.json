@@ -8,9 +8,7 @@
   "license": "MIT",
   "private": true,
   "dependencies": {
-    "aws-sdk": "^2.618.0",
-    "dynamodb-doc": "^1.0.0",
-    "throat": "^4.0.0"
+    "aws-sdk": "^2.618.0"
   },
   "scripts": {
     "start": "pm2 start server.js --watch"

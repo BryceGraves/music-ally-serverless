@@ -1,12 +1,9 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const DOC = require('dynamodb-doc');
+AWS.config.region = 'us-east-1';
 
-const awsClient = AWS.DynamoDB();
-const docClient = new DOC.DynamoDB(awsClient);
-
-const dynamo = new docClient.DynamoDB();
+const dynamo = new AWS.DynamoDB.DocumentClient();
 
 exports.saveUser = (event, context, callback) => {
   const done = (err, res) =>
@@ -15,6 +12,7 @@ exports.saveUser = (event, context, callback) => {
       body: err ? err.message : JSON.stringify(res),
       headers: {
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
       },
     });
 
@@ -22,7 +20,7 @@ exports.saveUser = (event, context, callback) => {
     case 'POST':
       const { Id, Email, Name } = JSON.parse(event.body);
 
-      const dynamoParams = {
+      const saveUserPostParams = {
         TableName: event.queryStringParameters.ServerlessUsersTable,
         Item: {
           Id,
@@ -31,7 +29,7 @@ exports.saveUser = (event, context, callback) => {
         },
       };
 
-      dynamo.putItem(dynamoParams, done);
+      dynamo.putItem(saveUserPostParams, done);
       break;
     default:
       done(new Error(`Unsupported method "${event.httpMethod}"`));
@@ -39,8 +37,6 @@ exports.saveUser = (event, context, callback) => {
 };
 
 exports.handlePlaylist = (event, context, callback) => {
-  //console.log('Received event:', JSON.stringify(event, null, 2));
-
   const done = (err, res) =>
     callback(null, {
       statusCode: err ? '400' : '200',
@@ -52,7 +48,7 @@ exports.handlePlaylist = (event, context, callback) => {
 
   switch (event.httpMethod) {
     case 'GET':
-      const dynamoParams = {
+      const playlistGetParams = {
         TableName: event.queryStringParameters.ServerlessPlaylistTable,
         IndexName: 'PlaylistIndex',
         KeyConditionExpression: 'Playlist = :Playlist',
@@ -61,11 +57,11 @@ exports.handlePlaylist = (event, context, callback) => {
         },
       };
 
-      dynamo.query(dynamoParams, done);
+      dynamo.query(playlistGetParams, done);
       break;
     case 'POST':
       const { Id, Songs } = event.body;
-      const dynamoParams = {
+      const savePlaylistPostParams = {
         TableName: event.queryStringParameters.ServerlessPlaylistTable,
         Item: {
           Id,
@@ -73,7 +69,7 @@ exports.handlePlaylist = (event, context, callback) => {
         },
       };
 
-      dynamo.put(dynamoParams, done);
+      dynamo.put(savePlaylistPostParams, done);
       break;
     default:
       done(new Error(`Unsupported method "${event.httpMethod}"`));
